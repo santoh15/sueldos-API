@@ -1,0 +1,238 @@
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+import joblib
+import pandas as pd
+import numpy as np
+import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = FastAPI(title="API Predictor de Sueldos IT")
+
+modelo = joblib.load('modelo_xgb.pkl')
+columnas_entrenamiento = joblib.load('columnas.pkl')
+
+# --- CONFIGURACIÓN DE BASE DE DATOS ---
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def inicializar_db():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS historial_predicciones (
+                id SERIAL PRIMARY KEY,
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                anos_experiencia REAL,
+                edad INTEGER,
+                seniority VARCHAR(50),
+                sueldo_estimado REAL
+            )
+        """)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Base de datos conectada")
+    except Exception as e:
+        print(f"Error conectando a la BD: {e}")
+
+
+inicializar_db()
+
+class DatosUsuario(BaseModel):
+    donde_estas_trabajando: str
+    dedicacion: str
+    modalidad_de_trabajo: str
+    genero: str
+    seniority: str
+    recibis_algun_tipo_de_bono: int 
+    tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre: int
+    estas_buscando_trabajo: int
+    cuantas_personas_tenes_a_cargo: int 
+    sueldo_dolarizado: int  
+    anos_de_experiencia: float
+    antiguedad_en_la_empresa_actual: float
+    anos_en_el_puesto_actual: float
+    tengo_edad: int
+
+@app.post("/predecir")
+def predecir_sueldo(datos: DatosUsuario):
+    df_entrada = pd.DataFrame([datos.dict()])
+    columnas_texto = ['donde_estas_trabajando', 'dedicacion', 'modalidad_de_trabajo', 'genero', 'seniority']
+    for col in columnas_texto:
+        df_entrada[col] = df_entrada[col].str.lower().str.replace(' ', '_')
+    
+    df_dummies = pd.get_dummies(df_entrada)
+    df_modelo = df_dummies.reindex(columns=columnas_entrenamiento, fill_value=0)
+    
+    prediccion_log = modelo.predict(df_modelo)
+    sueldo_real = float(round(np.expm1(prediccion_log[0]), 2))
+    
+    # 2.Base de Datos (SQL)
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        consulta_sql = """
+            INSERT INTO historial_predicciones (anos_experiencia, edad, seniority, sueldo_estimado)
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(consulta_sql, (datos.anos_de_experiencia, datos.tengo_edad, datos.seniority, sueldo_real))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error al guardar en SQL: {e}")
+
+    return {"sueldo_estimado_ars": sueldo_real}
+
+
+@app.get("/", response_class=HTMLResponse)
+def leer_interfaz():
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Predictor de Sueldos IT</title>
+        <style>
+            body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
+            .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+            h2 { text-align: center; color: #333; }
+            .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+            .full-width { grid-column: 1 / -1; }
+            label { font-weight: bold; font-size: 14px; color: #555; }
+            input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+            button { width: 100%; padding: 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.3s; }
+            button:hover { background-color: #0056b3; }
+            #resultado { margin-top: 20px; text-align: center; font-size: 26px; font-weight: bold; color: #28a745; display: none; padding: 15px; background-color: #e9f7ef; border-radius: 5px; border: 1px solid #c3e6cb;}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>Calculadora de Sueldos IT </h2>
+            <form id="formSueldo" class="grid-form">
+                
+                <div>
+                    <label>Provincia / Ubicación:</label>
+                    <input type="text" id="donde_estas_trabajando" value="Ciudad Autonoma de Buenos Aires" required>
+                </div>
+                <div>
+                    <label>Dedicación:</label>
+                    <select id="dedicacion">
+                        <option value="Full-Time">Full-Time</option>
+                        <option value="Part-Time">Part-Time</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Modalidad de trabajo:</label>
+                    <select id="modalidad_de_trabajo">
+                        <option value="Hibrido">Híbrido</option>
+                        <option value="100% Remoto">100% Remoto</option>
+                        <option value="100% Presencial">100% Presencial</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Seniority:</label>
+                    <select id="seniority">
+                        <option value="Junior">Junior</option>
+                        <option value="Semi-Senior">Semi-Senior</option>
+                        <option value="Senior" selected>Senior</option>
+                    </select>
+                </div>
+                <div class="full-width">
+                    <label>Género:</label>
+                    <select id="genero">
+                        <option value="Varon Cis">Varón Cis</option>
+                        <option value="Mujer Cis">Mujer Cis</option>
+                        <option value="Prefiero no decir">Prefiero no decir</option>
+                        <option value="Varon Trans">Varón Trans</option>
+                        <option value="Mujer Trans">Mujer Trans</option>
+                        <option value="No binarie">No Binarie</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>¿Sueldo Dolarizado?</label>
+                    <select id="sueldo_dolarizado"><option value="1">Sí</option><option value="0" selected>No</option></select>
+                </div>
+                <div>
+                    <label>¿Recibís bono?</label>
+                    <select id="recibis_algun_tipo_de_bono"><option value="1">Sí</option><option value="0" selected>No</option></select>
+                </div>
+                <div>
+                    <label>¿Ajuste por inflación último semestre?</label>
+                    <select id="tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre"><option value="1" selected>Sí</option><option value="0">No</option></select>
+                </div>
+                <div>
+                    <label>¿Buscando trabajo activamente?</label>
+                    <select id="estas_buscando_trabajo"><option value="1">Sí</option><option value="0" selected>No</option></select>
+                </div>
+                <div>
+                    <label>¿Tenés personas a cargo?</label>
+                    <select id="cuantas_personas_tenes_a_cargo"><option value="1">Sí</option><option value="0" selected>No</option></select>
+                </div>
+
+                <div>
+                    <label>Edad:</label>
+                    <input type="number" id="tengo_edad" value="30" required>
+                </div>
+                <div>
+                    <label>Años de experiencia:</label>
+                    <input type="number" id="anos_de_experiencia" value="5" step="0.5" required>
+                </div>
+                <div>
+                    <label>Antigüedad en empresa actual:</label>
+                    <input type="number" id="antiguedad_en_la_empresa_actual" value="2" step="0.5" required>
+                </div>
+                <div>
+                    <label>Años en el puesto actual:</label>
+                    <input type="number" id="anos_en_el_puesto_actual" value="2" step="0.5" required>
+                </div>
+
+                <div class="full-width">
+                    <button type="submit">Calcular Sueldo </button>
+                </div>
+            </form>
+            <div id="resultado" class="full-width"></div>
+        </div>
+
+        <script>
+            document.getElementById('formSueldo').onsubmit = async (e) => {
+                e.preventDefault();
+                
+                const datos = {
+                    donde_estas_trabajando: document.getElementById('donde_estas_trabajando').value,
+                    dedicacion: document.getElementById('dedicacion').value,
+                    modalidad_de_trabajo: document.getElementById('modalidad_de_trabajo').value,
+                    genero: document.getElementById('genero').value,
+                    seniority: document.getElementById('seniority').value,
+                    recibis_algun_tipo_de_bono: parseInt(document.getElementById('recibis_algun_tipo_de_bono').value),
+                    tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre: parseInt(document.getElementById('tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre').value),
+                    estas_buscando_trabajo: parseInt(document.getElementById('estas_buscando_trabajo').value),
+                    cuantas_personas_tenes_a_cargo: parseInt(document.getElementById('cuantas_personas_tenes_a_cargo').value),
+                    sueldo_dolarizado: parseInt(document.getElementById('sueldo_dolarizado').value),
+                    anos_de_experiencia: parseFloat(document.getElementById('anos_de_experiencia').value),
+                    antiguedad_en_la_empresa_actual: parseFloat(document.getElementById('antiguedad_en_la_empresa_actual').value),
+                    anos_en_el_puesto_actual: parseFloat(document.getElementById('anos_en_el_puesto_actual').value),
+                    tengo_edad: parseInt(document.getElementById('tengo_edad').value)
+                };
+
+                const response = await fetch('/predecir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+
+                const result = await response.json();
+                const divResultado = document.getElementById('resultado');
+                divResultado.style.display = 'block';
+                divResultado.innerText = "$ " + result.sueldo_estimado_ars.toLocaleString('es-AR');
+            };
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)

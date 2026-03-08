@@ -1,0 +1,38 @@
+name: Despliegue en Produccion (CI/CD)
+
+on:
+  push:
+    branches:
+      - main # El robot se despierta solo cuando hay cambios en esta rama
+
+env:
+  PROJECT_ID: prediccion-de-sueldos # El nombre de tu proyecto en Google
+  SERVICE: api-sueldos
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # El robot usará una computadora virtual con Linux
+    
+    steps:
+      - name: 1. Descargar el código fuente
+        uses: actions/checkout@v4
+
+      - name: 2. Autenticarse en Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: 3. Configurar la terminal de Google (gcloud)
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: 4. Construir y Desplegar en Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
+            --source . \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --memory 1Gi \
+            --port 8080 \
+            --set-env-vars DATABASE_URL="${{ secrets.DATABASE_URL }}"
