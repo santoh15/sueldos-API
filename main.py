@@ -39,7 +39,6 @@ def inicializar_db():
     except Exception as e:
         print(f"Error conectando a la BD: {e}")
 
-
 inicializar_db()
 
 class DatosUsuario(BaseModel):
@@ -57,11 +56,15 @@ class DatosUsuario(BaseModel):
     antiguedad_en_la_empresa_actual: float
     anos_en_el_puesto_actual: float
     tengo_edad: int
+    contas_con_beneficios_adicionales: str
+    trabajo_de: str
+    lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual: str
+
 
 @app.post("/predecir")
 def predecir_sueldo(datos: DatosUsuario):
     df_entrada = pd.DataFrame([datos.dict()])
-    columnas_texto = ['donde_estas_trabajando', 'dedicacion', 'modalidad_de_trabajo', 'genero', 'seniority']
+    columnas_texto = ['donde_estas_trabajando', 'dedicacion', 'modalidad_de_trabajo', 'genero', 'seniority', 'contas_con_beneficios_adicionales', 'trabajo_de', 'lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual']
     for col in columnas_texto:
         df_entrada[col] = df_entrada[col].str.lower().str.replace(' ', '_')
     
@@ -87,7 +90,6 @@ def predecir_sueldo(datos: DatosUsuario):
         print(f"Error al guardar en SQL: {e}")
 
     return {"sueldo_estimado_ars": sueldo_real}
-
 
 @app.get("/", response_class=HTMLResponse)
 def leer_interfaz():
@@ -115,6 +117,29 @@ def leer_interfaz():
             <h2>Calculadora de Sueldos IT </h2>
             <form id="formSueldo" class="grid-form">
                 
+                <div class="full-width">
+                    <label>Rol principal (trabajo_de):</label>
+                    <input type="text" id="trabajo_de" placeholder="Ej: Developer, Data Scientist, QA" required>
+                </div>
+                
+                <div class="full-width">
+                    <label>Lenguajes o tecnologías (separados por coma):</label>
+                    <input type="text" id="lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual" placeholder="Ej: Python, SQL, Docker" required>
+                </div>
+
+                <div class="full-width">
+                    <label>Beneficios adicionales (separados por coma o texto):</label>
+                    <input type="text" id="contas_con_beneficios_adicionales" placeholder="Ej: Obra social, Capacitaciones, Clases de inglés" required>
+                </div>
+                <div>
+                    <label>Seniority:</label>
+                    <select id="seniority">
+                        <option value="Junior">Junior</option>
+                        <option value="Semi-Senior">Semi-Senior</option>
+                        <option value="Senior" selected>Senior</option>
+                    </select>
+                </div>
+
                 <div>
                     <label>Provincia / Ubicación:</label>
                     <input type="text" id="donde_estas_trabajando" value="Ciudad Autonoma de Buenos Aires" required>
@@ -126,6 +151,7 @@ def leer_interfaz():
                         <option value="Part-Time">Part-Time</option>
                     </select>
                 </div>
+                
                 <div>
                     <label>Modalidad de trabajo:</label>
                     <select id="modalidad_de_trabajo">
@@ -135,14 +161,6 @@ def leer_interfaz():
                     </select>
                 </div>
                 <div>
-                    <label>Seniority:</label>
-                    <select id="seniority">
-                        <option value="Junior">Junior</option>
-                        <option value="Semi-Senior">Semi-Senior</option>
-                        <option value="Senior" selected>Senior</option>
-                    </select>
-                </div>
-                <div class="full-width">
                     <label>Género:</label>
                     <select id="genero">
                         <option value="Varon Cis">Varón Cis</option>
@@ -162,38 +180,41 @@ def leer_interfaz():
                     <label>¿Recibís bono?</label>
                     <select id="recibis_algun_tipo_de_bono"><option value="1">Sí</option><option value="0" selected>No</option></select>
                 </div>
+                
                 <div>
-                    <label>¿Ajuste por inflación último semestre?</label>
+                    <label>¿Ajuste inflación último semestre?</label>
                     <select id="tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre"><option value="1" selected>Sí</option><option value="0">No</option></select>
                 </div>
                 <div>
                     <label>¿Buscando trabajo activamente?</label>
                     <select id="estas_buscando_trabajo"><option value="1">Sí</option><option value="0" selected>No</option></select>
                 </div>
+                
                 <div>
                     <label>¿Tenés personas a cargo?</label>
                     <select id="cuantas_personas_tenes_a_cargo"><option value="1">Sí</option><option value="0" selected>No</option></select>
                 </div>
-
                 <div>
                     <label>Edad:</label>
                     <input type="number" id="tengo_edad" value="30" required>
                 </div>
+
                 <div>
                     <label>Años de experiencia:</label>
                     <input type="number" id="anos_de_experiencia" value="5" step="0.5" required>
                 </div>
                 <div>
-                    <label>Antigüedad en empresa actual:</label>
+                    <label>Antigüedad empresa actual:</label>
                     <input type="number" id="antiguedad_en_la_empresa_actual" value="2" step="0.5" required>
                 </div>
-                <div>
+                
+                <div class="full-width">
                     <label>Años en el puesto actual:</label>
                     <input type="number" id="anos_en_el_puesto_actual" value="2" step="0.5" required>
                 </div>
 
                 <div class="full-width">
-                    <button type="submit">Calcular Sueldo </button>
+                    <button type="submit" id="btnCalcular">Calcular Sueldo</button>
                 </div>
             </form>
             <div id="resultado" class="full-width"></div>
@@ -203,7 +224,18 @@ def leer_interfaz():
             document.getElementById('formSueldo').onsubmit = async (e) => {
                 e.preventDefault();
                 
+                // Animación visual del botón
+                const btn = document.getElementById('btnCalcular');
+                const btnTextoOriginal = btn.innerText;
+                btn.innerText = "Calculando...";
+                btn.disabled = true;
+                
+                // Recolectamos los datos asegurándonos de usar las keys EXACTAS de tu Pydantic BaseModel
                 const datos = {
+                    trabajo_de: document.getElementById('trabajo_de').value,
+                    lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual: document.getElementById('lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual').value,
+                    contas_con_beneficios_adicionales: document.getElementById('contas_con_beneficios_adicionales').value,
+                    
                     donde_estas_trabajando: document.getElementById('donde_estas_trabajando').value,
                     dedicacion: document.getElementById('dedicacion').value,
                     modalidad_de_trabajo: document.getElementById('modalidad_de_trabajo').value,
@@ -220,16 +252,32 @@ def leer_interfaz():
                     tengo_edad: parseInt(document.getElementById('tengo_edad').value)
                 };
 
-                const response = await fetch('/predecir', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(datos)
-                });
+                try {
+                    // Cuidado aquí: asegúrate de que la ruta coincida con el @app.post() de tu main.py (puede ser '/predict' o '/predecir')
+                    const response = await fetch('/predecir', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(datos)
+                    });
 
-                const result = await response.json();
-                const divResultado = document.getElementById('resultado');
-                divResultado.style.display = 'block';
-                divResultado.innerText = "$ " + result.sueldo_estimado_ars.toLocaleString('es-AR');
+                    if (!response.ok) {
+                        throw new Error("Error en los datos enviados o problema en el servidor.");
+                    }
+
+                    const result = await response.json();
+                    const divResultado = document.getElementById('resultado');
+                    divResultado.style.display = 'block';
+                    divResultado.style.color = '#28a745';
+                    divResultado.innerText = "$ " + result.sueldo_estimado_ars.toLocaleString('es-AR');
+                } catch (error) {
+                    const divResultado = document.getElementById('resultado');
+                    divResultado.style.display = 'block';
+                    divResultado.style.color = 'red';
+                    divResultado.innerText = "Hubo un error al calcular: " + error.message;
+                } finally {
+                    btn.innerText = btnTextoOriginal;
+                    btn.disabled = false;
+                }
             };
         </script>
     </body>
