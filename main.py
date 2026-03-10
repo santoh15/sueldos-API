@@ -1,19 +1,15 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-import joblib
-import pandas as pd
-import numpy as np
+from dotenv import load_dotenv
 import psycopg2
 import os
-from dotenv import load_dotenv
+
+# Importamos nuestros archivos separados
+from interfaz import router_interfaz
+from predecir import router_predecir
 
 load_dotenv()
 
 app = FastAPI(title="API Predictor de Sueldos IT")
-
-modelo = joblib.load('modelo_xgb.pkl')
-columnas_entrenamiento = joblib.load('columnas.pkl')
 
 # --- CONFIGURACIÓN DE BASE DE DATOS ---
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -26,261 +22,36 @@ def inicializar_db():
             CREATE TABLE IF NOT EXISTS historial_predicciones (
                 id SERIAL PRIMARY KEY,
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                anos_experiencia REAL,
-                edad INTEGER,
+                donde_estas_trabajando VARCHAR(255),
+                dedicacion VARCHAR(50),
+                modalidad_de_trabajo VARCHAR(50),
+                genero VARCHAR(50),
                 seniority VARCHAR(50),
-                sueldo_estimado REAL
+                recibis_algun_tipo_de_bono INTEGER,
+                tuviste_actualizaciones_durante_ultimo_semestre INTEGER,
+                estas_buscando_trabajo INTEGER,
+                cuantas_personas_tenes_a_cargo INTEGER,
+                sueldo_dolarizado INTEGER,
+                anos_de_experiencia REAL,
+                antiguedad_en_la_empresa_actual REAL,
+                anos_en_el_puesto_actual REAL,
+                tengo_edad INTEGER,
+                contas_con_beneficios_adicionales TEXT,
+                trabajo_de VARCHAR(255),
+                lenguajes_de_programacion TEXT,
+                sueldo_real_percibido REAL,
+                sueldo_estimado_modelo REAL
             )
         """)
         conn.commit()
         cursor.close()
         conn.close()
-        print("Base de datos conectada")
+        print("Base de datos conectada y verificada")
     except Exception as e:
         print(f"Error conectando a la BD: {e}")
 
 inicializar_db()
 
-class DatosUsuario(BaseModel):
-    donde_estas_trabajando: str
-    dedicacion: str
-    modalidad_de_trabajo: str
-    genero: str
-    seniority: str
-    recibis_algun_tipo_de_bono: int 
-    tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre: int
-    estas_buscando_trabajo: int
-    cuantas_personas_tenes_a_cargo: int 
-    sueldo_dolarizado: int  
-    anos_de_experiencia: float
-    antiguedad_en_la_empresa_actual: float
-    anos_en_el_puesto_actual: float
-    tengo_edad: int
-    contas_con_beneficios_adicionales: str
-    trabajo_de: str
-    lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual: str
-
-
-@app.post("/predecir")
-def predecir_sueldo(datos: DatosUsuario):
-    df_entrada = pd.DataFrame([datos.dict()])
-    columnas_texto = ['donde_estas_trabajando', 'dedicacion', 'modalidad_de_trabajo', 'genero', 'seniority', 'contas_con_beneficios_adicionales', 'trabajo_de', 'lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual']
-    for col in columnas_texto:
-        df_entrada[col] = df_entrada[col].str.lower().str.replace(' ', '_')
-    
-    df_dummies = pd.get_dummies(df_entrada)
-    df_modelo = df_dummies.reindex(columns=columnas_entrenamiento, fill_value=0)
-    
-    prediccion_log = modelo.predict(df_modelo)
-    sueldo_real = float(round(np.expm1(prediccion_log[0]), 2))
-    
-    # 2.Base de Datos (SQL)
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-        consulta_sql = """
-            INSERT INTO historial_predicciones (anos_experiencia, edad, seniority, sueldo_estimado)
-            VALUES (%s, %s, %s, %s)
-        """
-        cursor.execute(consulta_sql, (datos.anos_de_experiencia, datos.tengo_edad, datos.seniority, sueldo_real))
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"Error al guardar en SQL: {e}")
-
-    return {"sueldo_estimado_ars": sueldo_real}
-
-@app.get("/", response_class=HTMLResponse)
-def leer_interfaz():
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <title>Predictor de Sueldos IT</title>
-        <style>
-            body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
-            .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-            h2 { text-align: center; color: #333; }
-            .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-            .full-width { grid-column: 1 / -1; }
-            label { font-weight: bold; font-size: 14px; color: #555; }
-            input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-            button { width: 100%; padding: 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.3s; }
-            button:hover { background-color: #0056b3; }
-            #resultado { margin-top: 20px; text-align: center; font-size: 26px; font-weight: bold; color: #28a745; display: none; padding: 15px; background-color: #e9f7ef; border-radius: 5px; border: 1px solid #c3e6cb;}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h2>Calculadora de Sueldos IT </h2>
-            <form id="formSueldo" class="grid-form">
-                
-                <div class="full-width">
-                    <label>Rol principal (trabajo_de):</label>
-                    <input type="text" id="trabajo_de" placeholder="Ej: Developer, Data Scientist, QA" required>
-                </div>
-                
-                <div class="full-width">
-                    <label>Lenguajes o tecnologías (separados por coma):</label>
-                    <input type="text" id="lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual" placeholder="Ej: Python, SQL, Docker" required>
-                </div>
-
-                <div class="full-width">
-                    <label>Beneficios adicionales (separados por coma o texto):</label>
-                    <input type="text" id="contas_con_beneficios_adicionales" placeholder="Ej: Obra social, Capacitaciones, Clases de inglés" required>
-                </div>
-                <div>
-                    <label>Seniority:</label>
-                    <select id="seniority">
-                        <option value="Junior">Junior</option>
-                        <option value="Semi-Senior">Semi-Senior</option>
-                        <option value="Senior" selected>Senior</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label>Provincia / Ubicación:</label>
-                    <input type="text" id="donde_estas_trabajando" value="Ciudad Autonoma de Buenos Aires" required>
-                </div>
-                <div>
-                    <label>Dedicación:</label>
-                    <select id="dedicacion">
-                        <option value="Full-Time">Full-Time</option>
-                        <option value="Part-Time">Part-Time</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <label>Modalidad de trabajo:</label>
-                    <select id="modalidad_de_trabajo">
-                        <option value="Hibrido">Híbrido</option>
-                        <option value="100% Remoto">100% Remoto</option>
-                        <option value="100% Presencial">100% Presencial</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Género:</label>
-                    <select id="genero">
-                        <option value="Varon Cis">Varón Cis</option>
-                        <option value="Mujer Cis">Mujer Cis</option>
-                        <option value="Prefiero no decir">Prefiero no decir</option>
-                        <option value="Varon Trans">Varón Trans</option>
-                        <option value="Mujer Trans">Mujer Trans</option>
-                        <option value="No binarie">No Binarie</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label>¿Sueldo Dolarizado?</label>
-                    <select id="sueldo_dolarizado"><option value="1">Sí</option><option value="0" selected>No</option></select>
-                </div>
-                <div>
-                    <label>¿Recibís bono?</label>
-                    <select id="recibis_algun_tipo_de_bono"><option value="1">Sí</option><option value="0" selected>No</option></select>
-                </div>
-                
-                <div>
-                    <label>¿Ajuste inflación último semestre?</label>
-                    <select id="tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre"><option value="1" selected>Sí</option><option value="0">No</option></select>
-                </div>
-                <div>
-                    <label>¿Buscando trabajo activamente?</label>
-                    <select id="estas_buscando_trabajo"><option value="1">Sí</option><option value="0" selected>No</option></select>
-                </div>
-                
-                <div>
-                    <label>¿Tenés personas a cargo?</label>
-                    <select id="cuantas_personas_tenes_a_cargo"><option value="1">Sí</option><option value="0" selected>No</option></select>
-                </div>
-                <div>
-                    <label>Edad:</label>
-                    <input type="number" id="tengo_edad" value="30" required>
-                </div>
-
-                <div>
-                    <label>Años de experiencia:</label>
-                    <input type="number" id="anos_de_experiencia" value="5" step="0.5" required>
-                </div>
-                <div>
-                    <label>Antigüedad empresa actual:</label>
-                    <input type="number" id="antiguedad_en_la_empresa_actual" value="2" step="0.5" required>
-                </div>
-                
-                <div class="full-width">
-                    <label>Años en el puesto actual:</label>
-                    <input type="number" id="anos_en_el_puesto_actual" value="2" step="0.5" required>
-                </div>
-
-                <div class="full-width">
-                    <button type="submit" id="btnCalcular">Calcular Sueldo</button>
-                </div>
-            </form>
-            <div id="resultado" class="full-width"></div>
-        </div>
-
-        <script>
-            document.getElementById('formSueldo').onsubmit = async (e) => {
-                e.preventDefault();
-                
-                // Animación visual del botón
-                const btn = document.getElementById('btnCalcular');
-                const btnTextoOriginal = btn.innerText;
-                btn.innerText = "Calculando...";
-                btn.disabled = true;
-                
-                // Recolectamos los datos asegurándonos de usar las keys EXACTAS de tu Pydantic BaseModel
-                const datos = {
-                    trabajo_de: document.getElementById('trabajo_de').value,
-                    lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual: document.getElementById('lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual').value,
-                    contas_con_beneficios_adicionales: document.getElementById('contas_con_beneficios_adicionales').value,
-                    
-                    donde_estas_trabajando: document.getElementById('donde_estas_trabajando').value,
-                    dedicacion: document.getElementById('dedicacion').value,
-                    modalidad_de_trabajo: document.getElementById('modalidad_de_trabajo').value,
-                    genero: document.getElementById('genero').value,
-                    seniority: document.getElementById('seniority').value,
-                    recibis_algun_tipo_de_bono: parseInt(document.getElementById('recibis_algun_tipo_de_bono').value),
-                    tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre: parseInt(document.getElementById('tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre').value),
-                    estas_buscando_trabajo: parseInt(document.getElementById('estas_buscando_trabajo').value),
-                    cuantas_personas_tenes_a_cargo: parseInt(document.getElementById('cuantas_personas_tenes_a_cargo').value),
-                    sueldo_dolarizado: parseInt(document.getElementById('sueldo_dolarizado').value),
-                    anos_de_experiencia: parseFloat(document.getElementById('anos_de_experiencia').value),
-                    antiguedad_en_la_empresa_actual: parseFloat(document.getElementById('antiguedad_en_la_empresa_actual').value),
-                    anos_en_el_puesto_actual: parseFloat(document.getElementById('anos_en_el_puesto_actual').value),
-                    tengo_edad: parseInt(document.getElementById('tengo_edad').value)
-                };
-
-                try {
-                    // Cuidado aquí: asegúrate de que la ruta coincida con el @app.post() de tu main.py (puede ser '/predict' o '/predecir')
-                    const response = await fetch('/predecir', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(datos)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error("Error en los datos enviados o problema en el servidor.");
-                    }
-
-                    const result = await response.json();
-                    const divResultado = document.getElementById('resultado');
-                    divResultado.style.display = 'block';
-                    divResultado.style.color = '#28a745';
-                    divResultado.innerText = "$ " + result.sueldo_estimado_ars.toLocaleString('es-AR');
-                } catch (error) {
-                    const divResultado = document.getElementById('resultado');
-                    divResultado.style.display = 'block';
-                    divResultado.style.color = 'red';
-                    divResultado.innerText = "Hubo un error al calcular: " + error.message;
-                } finally {
-                    btn.innerText = btnTextoOriginal;
-                    btn.disabled = false;
-                }
-            };
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+# --- CONECTAR LAS RUTAS ---
+app.include_router(router_interfaz)
+app.include_router(router_predecir)
