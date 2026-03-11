@@ -2,7 +2,7 @@
 
 Un servicio web End-to-End que predice sueldos del sector tecnológico en Argentina mediante Machine Learning. El proyecto abarca desde el entrenamiento del modelo hasta su despliegue en la nube y el almacenamiento de inferencias en tiempo real.
 
-🔗 **[Probá la API acá](https://api-sueldos-873271753459.us-central1.run.app/)**
+**[Probá la API acá](https://api-sueldos-873271753459.us-central1.run.app/)**
 
 ## Arquitectura del Sistema
 1. **Frontend / Cliente:** Interfaz HTML/JS servida directamente desde la API para ingresar los 17 parámetros del usuario.
@@ -10,7 +10,7 @@ Un servicio web End-to-End que predice sueldos del sector tecnológico en Argent
 3. **Inferencia (XGBoost):** Un modelo de regresión pre-entrenado estima la remuneración salarial.
 4. **Persistencia (PostgreSQL):** La predicción y el perfil se registran en una base de datos relacional en la nube para futuros análisis.
 
-## 🛠️ Stack Tecnológico
+##  Stack Tecnológico
 * **Ciencia de Datos:** Python, Scikit-Learn, Pandas, NumPy, XGBoost.
 * **Ingeniería de Software:** FastAPI, Pydantic, Uvicorn.
 * **Base de Datos:** PostgreSQL, Psycopg2.
