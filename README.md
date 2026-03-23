@@ -2,7 +2,7 @@
 
 A Machine Learning application designed to predict Information Technology (IT) salaries in Argentina. The prediction engine is powered by an **XGBoost** model, trained on the official **Sysarmy** survey dataset (2026.03 edition).
 
- **Live Demo:** [https://api-sueldos.onrender.com](https://api-sueldos.onrender.com)
+ **Live Demo:** [https://api-sueldos-873271753459.us-central1.run.app/](https://api-sueldos-873271753459.us-central1.run.app/)
 
 ## Tech Stack
 
@@ -10,7 +10,7 @@ A Machine Learning application designed to predict Information Technology (IT) s
 * **Backend API:** FastAPI, Uvicorn, Pydantic
 * **Frontend:** Vanilla HTML, CSS, JavaScript
 * **Database:** PostgreSQL
-* **Deployment:** Docker, Render
+* **Deployment:** Docker, Google Cloud Plataform
 
 ## Features & Architecture
 
