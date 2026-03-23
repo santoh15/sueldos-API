@@ -1,0 +1,9 @@
+*.ipynb
+data/
+.env
+.git
+__pycache__
+*.pyc
+README.md
+*.csv
+main.ipynb

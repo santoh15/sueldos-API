@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictor de Sueldos IT</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px;}
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 650px; }
+        h2 { text-align: center; color: #333; margin-top: 0;}
+        .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        .full-width { grid-column: 1 / -1; }
+        label { font-weight: 600; margin-bottom: 5px; color: #444; font-size: 14px;}
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box;}
+        button { width: 100%; padding: 15px; background-color: #007bff; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px;}
+        #resultado { margin-top: 20px; text-align: center; font-size: 26px; font-weight: bold; display: none; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Calculadora de Sueldo IT</h2>
+        
+        <form id="formSueldo">
+            <div class="grid-form">
+                
+                <div class="form-group">
+                    <label>Edad:</label>
+                    <input type="number" id="tengo_edad" required>
+                </div>
+                <div class="form-group">
+                    <label>Dedicación:</label>
+                    <select id="dedicacion" required>
+                        <option value="Full-Time" selected>Full-Time</option>
+                        <option value="Part-Time">Part-Time</option>
+                    </select>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Rol / Puesto:</label>
+                    <input type="text" id="trabajo_de" placeholder="Ej: Developer, Data Analyst" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Seniority:</label>
+                    <select id="seniority" required>
+                        <option value="Junior">Junior</option>
+                        <option value="Semi-Senior">Semi-Senior</option>
+                        <option value="Senior" selected>Senior</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>¿Cuántas personas tenés a cargo?</label>
+                    <input type="number" id="cuantas_personas_tenes_a_cargo" placeholder="Ej: 0, 3, 10" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Años de exp. totales:</label>
+                    <input type="number" id="anos_de_experiencia" step="0.5" required>
+                </div>
+                <div class="form-group">
+                    <label>Antigüedad en la empresa actual:</label>
+                    <input type="number" id="antiguedad_en_la_empresa_actual" step="0.5" required>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Años en el puesto actual:</label>
+                    <input type="number" id="anos_en_el_puesto_actual" step="0.5" required>
+                </div>
+                
+                <div class="form-group full-width">
+                    <label>Tecnologías principales (separadas por coma):</label>
+                    <input type="text" id="lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual" placeholder="Ej: Python, SQL" required>
+                </div>
+
+                <div class="form-group">
+                    <label>¿Recibís algún tipo de bono?</label>
+                    <input type="text" id="recibis_algun_tipo_de_bono" placeholder="Ej: No, Un sueldo, etc." required>
+                </div>
+                <div class="form-group">
+                    <label>¿Tu sueldo está dolarizado?</label>
+                    <select id="sueldo_dolarizado" required>
+                        <option value="0" selected>No</option>
+                        <option value="1">Sí</option>
+                    </select>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>¿Tuviste un ajuste por inflación (semestre)?</label>
+                    <select id="tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre" required>
+                        <option value="1" selected>Sí</option>
+                        <option value="0">No</option>
+                    </select>
+                </div>
+
+                <div class="form-group full-width" style="background-color: #eef7ff; padding: 15px; border-radius: 8px; border: 1px dashed #007bff;">
+                    <label style="color: #0056b3;">¿Sueldo real percibido? (Opcional):</label>
+                    <input type="number" id="sueldo_real_percibido" placeholder="Nos ayuda a mejorar la predicción" step="1000">
+                </div>
+
+                <div class="full-width">
+                    <button type="submit" id="btnCalcular">Calcular Sueldo</button>
+                </div>
+            </div>
+        </form>
+        
+        <div id="resultado" class="full-width"></div>
+    </div>
+
+    <script>
+        document.getElementById('formSueldo').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('btnCalcular');
+            const originalText = btn.innerText;
+            btn.innerText = "Calculando...";
+            btn.disabled = true;
+
+            const datos = {
+                dedicacion: document.getElementById('dedicacion').value,
+                recibis_algun_tipo_de_bono: document.getElementById('recibis_algun_tipo_de_bono').value,
+                tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre: parseInt(document.getElementById('tuviste_actualizaciones_de_tus_ingresos_laborales_durante_el_ultimo_semestre').value),
+                trabajo_de: document.getElementById('trabajo_de').value,
+                anos_de_experiencia: parseFloat(document.getElementById('anos_de_experiencia').value),
+                antiguedad_en_la_empresa_actual: parseFloat(document.getElementById('antiguedad_en_la_empresa_actual').value),
+                anos_en_el_puesto_actual: parseFloat(document.getElementById('anos_en_el_puesto_actual').value),
+                cuantas_personas_tenes_a_cargo: parseInt(document.getElementById('cuantas_personas_tenes_a_cargo').value),
+                lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual: document.getElementById('lenguajes_de_programacion_o_tecnologias_que_utilices_en_tu_puesto_actual').value,
+                tengo_edad: parseInt(document.getElementById('tengo_edad').value),
+                sueldo_dolarizado: parseInt(document.getElementById('sueldo_dolarizado').value),
+                seniority: document.getElementById('seniority').value,
+                sueldo_real_percibido: document.getElementById('sueldo_real_percibido').value ? parseFloat(document.getElementById('sueldo_real_percibido').value) : null
+            };
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(JSON.stringify(errorData));
+                }
+
+                const result = await response.json();
+                const divResultado = document.getElementById('resultado');
+                divResultado.style.display = 'block';
+                divResultado.style.color = '#28a745';
+                divResultado.style.backgroundColor = '#e9f7ef';
+                divResultado.style.border = '1px solid #c3e6cb';
+                divResultado.innerText = "$ " + result.sueldo_estimado_ars.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } catch (error) {
+                const divResultado = document.getElementById('resultado');
+                divResultado.style.display = 'block';
+                divResultado.style.color = '#721c24';
+                divResultado.style.backgroundColor = '#f8d7da';
+                divResultado.style.border = '1px solid #f5c6cb';
+                divResultado.innerText = "Error: " + error.message;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
