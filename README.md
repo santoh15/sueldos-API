@@ -49,7 +49,7 @@ For evaluation, I used MAE and R2 on the real salary values (after reversing the
 - **Database Logging:** Every prediction request is saved into a PostgreSQL database hosted on Neon.tech. The UI also includes an optional "Real Salary" field. This allows us to collect ground-truth data to monitor model drift and easily retrain the model in the future.
 - **Dockerized Environment:** The whole API is containerized, solving the "it works on my machine" problem and allowing seamless serverless deployment on Google Cloud Run.
 
-## 🚀 How to run the project
+## How to run the project
 
 Clone this repository:
 
@@ -71,7 +71,7 @@ docker run -p 8080:8080 --env-file .env api-sueldos
 ```
 3. Open your browser at `http://localhost:8080` to see the UI, or `http://localhost:8080/docs` to interact with the Swagger API.
 
-## 📡 API JSON Format for Predictions
+## API JSON Format for Predictions
 
 To generate predictions programmatically, you can send a `POST` request to `/predict`. The API expects a JSON payload with the following structure:
 
@@ -92,8 +92,3 @@ To generate predictions programmatically, you can send a `POST` request to `/pre
 }
 ```
 
-## ⚖️ Ethical Considerations
-
-During feature selection, survey datasets often include demographic variables such as Gender. While these variables can sometimes capture existing market disparities and statistically reduce the MAE, we carefully considered the implications of deploying such a model in production.
-
-Including gender as a predictive feature risks perpetuating and mathematically validating historical wage gaps. To ensure fairness and provide a gender-neutral salary estimation based purely on technical merit, experience, and role responsibilities, demographic bias features were neutralized in the deployed API.
