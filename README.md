@@ -1,62 +1,68 @@
-# API de Predicción Salarial IT (End-to-End ML)
+#  IT Salary Predictor - Argentina (2026.03)
 
-Un servicio web End-to-End que predice sueldos del sector tecnológico en Argentina mediante Machine Learning. El proyecto abarca desde el entrenamiento del modelo hasta su despliegue en la nube y el almacenamiento de inferencias en tiempo real.
+A Machine Learning application designed to predict Information Technology (IT) salaries in Argentina. The prediction engine is powered by an **XGBoost** model, trained on the official **Sysarmy** survey dataset (2026.03 edition).
 
-**[Probá la API acá](https://api-sueldos-873271753459.us-central1.run.app/)**
+ **Live Demo:** [https://api-sueldos.onrender.com](https://api-sueldos.onrender.com)
 
-## Arquitectura del Sistema
-1. **Frontend / Cliente:** Interfaz HTML/JS servida directamente desde la API para ingresar los 17 parámetros del usuario.
-2. **Procesamiento (FastAPI):** Recibe los datos, limpia las cadenas de texto y aplica One-Hot Encoding dinámico utilizando Pandas.
-3. **Inferencia (XGBoost):** Un modelo de regresión pre-entrenado estima la remuneración salarial.
-4. **Persistencia (PostgreSQL):** La predicción y el perfil se registran en una base de datos relacional en la nube para futuros análisis.
+## Tech Stack
 
-##  Stack Tecnológico
-* **Ciencia de Datos:** Python, Scikit-Learn, Pandas, NumPy, XGBoost.
-* **Ingeniería de Software:** FastAPI, Pydantic, Uvicorn.
-* **Base de Datos:** PostgreSQL, Psycopg2.
-* **Despliegue & DevOps:** Docker, Google Cloud Run (Serverless).
+* **Machine Learning:** Python, Pandas, NumPy, XGBoost, Scikit-learn
+* **Backend API:** FastAPI, Uvicorn, Pydantic
+* **Frontend:** Vanilla HTML, CSS, JavaScript
+* **Database:** PostgreSQL
+* **Deployment:** Docker, Render
 
-## Ejecución del proyecto localmente
+## Features & Architecture
 
-### Requisitos previos
-* Docker.
-* Una cuenta gratuita en Neon.tech (o cualquier servidor PostgreSQL local/cloud).
+The model estimates salaries based on 12 key features:
+* Age
+* Total years of experience
+* Years in the current role
+* Years at the current company
+* Number of direct reports
+* Bonus reception
+* Inflation adjustments in the last semester
+* Seniority level
+* Current role / Title
+* Main programming languages and technologies
+* Salary tied to USD
 
-### Instalación
-1. Clona este repositorio:
+Additionally, the application securely stores prediction history and (optional) real salary inputs in a PostgreSQL database to monitor model drift and gather future training data.
+
+## How to Run Locally (Docker)
+
+The easiest and most reliable way to run this application is using Docker.
+
+### Prerequisites
+* Docker Desktop installed.
+* A `.env` file in the root directory with your database credentials:
+    ```env
+    DATABASE_URL=postgresql://user:password@host:port/dbname
+    ```
+
+### Installation Steps
+
+1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/TU_USUARIO/api-sueldos-it.git](https://github.com/TU_USUARIO/api-sueldos-it.git)
-   cd api-sueldos-it
-
-2. Crea un archivo `.env` en la raíz con tu URL de base de datos:
-   ```
-   DATABASE_URL=postgresql://tu_usuario:tu_password@tu_host:5432/tu_db
+   git clone [https://github.com/santoh15/sueldos-API](https://github.com/santoh15/sueldos-API)
+   cd your-repo-name
    ```
 
-3. Ejecuta el notebook `main3.ipynb` para entrenar el modelo y generar `model_xgb.pkl` y `columns.pkl` en `api_deployment/`.
-
-### Despliegue con Docker
-
-1. Construye la imagen:
+2. **Build the Docker image:**
    ```bash
-   docker build -t sueldos-api .
+   docker build -t api-sueldos .
    ```
 
-2. Ejecuta el contenedor (inyecta la variable de entorno en runtime):
+3. **Run the container:**
    ```bash
-   docker run -p 8080:8080 -e DATABASE_URL=tu_url_de_db sueldos-api
+   docker run -p 8080:8080 --env-file .env api-sueldos
    ```
 
-3. Accede a la API en `http://localhost:8080`.
+4. **Access the application:**
+   * **Web Interface:** `http://localhost:8080`
+   * **Interactive API Docs (Swagger UI):** `http://localhost:8080/docs`
 
-### Despliegue en Producción (Google Cloud Run)
+## API Endpoints
 
-1. Construye y sube la imagen a Google Container Registry:
-   ```bash
-   gcloud builds submit --tag gcr.io/TU_PROYECTO/sueldos-api
-   ```
-
-2. Despliega en Cloud Run:
-   ```bash
-   gcloud run deploy sueldos-api --image gcr.io/TU_PROYECTO/sueldos-api --platform managed --port 8080 --set-env-vars DATABASE_URL=tu_url_de_db
-   ```
+* `GET /`: Serves the main HTML frontend interface.
+* `POST /predict`: Accepts a JSON payload with user data, runs the XGBoost prediction, saves the record to the database, and returns the estimated salary in ARS.
